@@ -418,14 +418,22 @@ async def reo_add_to_list(
 
 
 @mcp.tool()
-async def reo_list_audiences() -> str:
+async def reo_list_audiences(type: str | None = None) -> str:
     """
     List all audiences from reo.dev.
+
+    Args:
+        type: Filter audiences by type — "BUYER" or "DEVELOPER". Omit to return all audiences.
     """
+    params = {}
+    if type is not None:
+        params["type"] = type
+
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.get(
             f"{REO_INTEGRATION_BASE_URL}/audiences",
             headers=_reo_headers(),
+            params=params,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -472,7 +480,10 @@ async def reo_get_audience_members(audience_id: str, page: int = 1) -> str:
     if not isinstance(members, list):
         members = []
 
-    pagination = data.get("pagination", inner.get("pagination", {})) if isinstance(data, dict) else {}
+    pagination = (
+        data.get("pagination") or (inner.get("pagination", {}) if isinstance(inner, dict) else {})
+        if isinstance(data, dict) else {}
+    )
 
     lines = [
         f"**Audience {audience_id} Members** (page {page})",
