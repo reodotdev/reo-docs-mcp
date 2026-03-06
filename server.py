@@ -5,7 +5,10 @@ Wraps the reo.dev integration and ingest APIs for use with Claude Desktop.
 
 import os
 import httpx
+from dotenv import load_dotenv
 from fastmcp import FastMCP
+
+load_dotenv()
 
 REO_INTEGRATION_BASE_URL = os.environ.get("REO_INTEGRATION_BASE_URL", "https://integration.reo.dev")
 REO_INGEST_BASE_URL = os.environ.get("REO_INGEST_BASE_URL", "https://ingest.reo.dev")
