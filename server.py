@@ -40,6 +40,17 @@ def _reo_list_headers() -> dict:
     }
 
 
+def _pagination_info(data: dict) -> str:
+    total = data.get("total_pages")
+    next_pg = data.get("next_page")
+    if total is not None:
+        info = f"total_pages: {total}"
+        if next_pg is not None:
+            info += f", next_page: {next_pg}"
+        return info
+    return ""
+
+
 @mcp.tool()
 async def reo_list_segments(page: int | None = None) -> str:
     """
@@ -61,16 +72,19 @@ async def reo_list_segments(page: int | None = None) -> str:
         resp.raise_for_status()
         data = resp.json()
 
-    segments = data.get("data", data) if isinstance(data, dict) else data
-    if isinstance(segments, dict):
-        segments = segments.get("segments", [])
+    segments = data.get("data", [])
+    pagination = _pagination_info(data)
 
-    lines = [f"**Reo.dev Segments** ({len(segments)} found)", ""]
+    header = f"**Reo.dev Segments** ({len(segments)} found)"
+    if pagination:
+        header += f" | {pagination}"
+    lines = [header, ""]
+
     if not segments:
         lines.append("No segments found.")
     else:
         for s in segments:
-            line = f"• [{s.get('segment_id', s.get('id', ''))}] {s.get('name', '')} — type: {s.get('type', '')}"
+            line = f"• [{s.get('segment_id', '')}] {s.get('name', '')} — type: {s.get('type', '')}"
             if s.get("description"):
                 line += f" | {s['description']}"
             lines.append(line)
@@ -100,18 +114,27 @@ async def reo_list_segment_accounts(segment_id: str, page: int | None = None) ->
         resp.raise_for_status()
         data = resp.json()
 
-    accounts = data.get("data", data) if isinstance(data, dict) else data
-    if isinstance(accounts, dict):
-        accounts = accounts.get("accounts", [])
+    accounts = data.get("data", [])
+    pagination = _pagination_info(data)
 
-    lines = [f"**Accounts in Segment {segment_id}** ({len(accounts)} found)", ""]
+    header = f"**Accounts in Segment {segment_id}** ({len(accounts)} found)"
+    if pagination:
+        header += f" | {pagination}"
+    lines = [header, ""]
+
     if not accounts:
         lines.append("No accounts found.")
     else:
         for a in accounts:
-            line = f"• {a.get('name', 'Unknown')} — {a.get('domain', '')}"
-            if a.get("developer_count") is not None:
-                line += f" | devs: {a['developer_count']}"
+            line = f"• {a.get('account_name', 'Unknown')} — {a.get('account_domain', '')}"
+            if a.get("active_developers_count") is not None:
+                line += f" | devs: {a['active_developers_count']}"
+            if a.get("developer_activity"):
+                line += f" | activity: {a['developer_activity']}"
+            if a.get("customer_fit"):
+                line += f" | fit: {a['customer_fit']}"
+            if a.get("country"):
+                line += f" | {a['country']}"
             lines.append(line)
 
     return "\n".join(lines)
@@ -133,19 +156,20 @@ async def reo_get_account_activities(account_id: str) -> str:
         resp.raise_for_status()
         data = resp.json()
 
-    activities = data.get("data", data) if isinstance(data, dict) else data
-    if isinstance(activities, dict):
-        activities = activities.get("activities", [])
+    activities = data.get("data", [])
 
     lines = [f"**Activities for Account {account_id}** ({len(activities)} found)", ""]
     if not activities:
         lines.append("No activities found.")
     else:
         for a in activities:
-            line = f"• [{a.get('type', '')}] {a.get('source', '')} — {a.get('date', a.get('timestamp', ''))}"
+            line = f"• [{a.get('activity_type', '')}] {a.get('activity_date', '')} — source: {a.get('source_type', '')}"
             if a.get("actor"):
-                actor = a["actor"]
-                line += f" | actor: {actor.get('name', '')} {actor.get('email', '')}"
+                line += f" | actor: {a['actor']}"
+            if a.get("developer_designation"):
+                line += f" | {a['developer_designation']}"
+            if a.get("source_url"):
+                line += f" | {a['source_url']}"
             lines.append(line)
 
     return "\n".join(lines)
@@ -173,22 +197,25 @@ async def reo_get_account_developers(account_id: str, page: int | None = None) -
         resp.raise_for_status()
         data = resp.json()
 
-    developers = data.get("data", data) if isinstance(data, dict) else data
-    if isinstance(developers, dict):
-        developers = developers.get("developers", [])
+    developers = data.get("data", [])
+    pagination = _pagination_info(data)
 
-    lines = [f"**Developers for Account {account_id}** ({len(developers)} found)", ""]
+    header = f"**Developers for Account {account_id}** ({len(developers)} found)"
+    if pagination:
+        header += f" | {pagination}"
+    lines = [header, ""]
+
     if not developers:
         lines.append("No developers found.")
     else:
         for d in developers:
-            line = f"• {d.get('name', d.get('full_name', 'Unknown'))}"
-            if d.get("email") or d.get("business_email"):
-                line += f" — {d.get('email') or d.get('business_email')}"
-            if d.get("github"):
-                line += f" | GitHub: {d['github']}"
-            if d.get("linkedin"):
-                line += f" | LinkedIn: {d['linkedin']}"
+            line = f"• {d.get('developer_name', 'Unknown')}"
+            if d.get("developer_business_email"):
+                line += f" — {d['developer_business_email']}"
+            if d.get("developer_github"):
+                line += f" | GitHub: {d['developer_github']}"
+            if d.get("developer_linkedin"):
+                line += f" | LinkedIn: {d['developer_linkedin']}"
             lines.append(line)
 
     return "\n".join(lines)
@@ -216,20 +243,25 @@ async def reo_list_segment_developers(segment_id: str, page: int | None = None) 
         resp.raise_for_status()
         data = resp.json()
 
-    developers = data.get("data", data) if isinstance(data, dict) else data
-    if isinstance(developers, dict):
-        developers = developers.get("developers", [])
+    developers = data.get("data", [])
+    pagination = _pagination_info(data)
 
-    lines = [f"**Developers in Segment {segment_id}** ({len(developers)} found)", ""]
+    header = f"**Developers in Segment {segment_id}** ({len(developers)} found)"
+    if pagination:
+        header += f" | {pagination}"
+    lines = [header, ""]
+
     if not developers:
         lines.append("No developers found.")
     else:
         for d in developers:
-            line = f"• {d.get('name', d.get('full_name', 'Unknown'))}"
-            if d.get("email") or d.get("business_email"):
-                line += f" — {d.get('email') or d.get('business_email')}"
-            if d.get("github"):
-                line += f" | GitHub: {d['github']}"
+            line = f"• {d.get('developer_name', 'Unknown')}"
+            if d.get("developer_business_email"):
+                line += f" — {d['developer_business_email']}"
+            if d.get("developer_github"):
+                line += f" | GitHub: {d['developer_github']}"
+            if d.get("tags"):
+                line += f" | tags: {d['tags']}"
             lines.append(line)
 
     return "\n".join(lines)
@@ -251,18 +283,20 @@ async def reo_get_developer_activities(developer_id: str) -> str:
         resp.raise_for_status()
         data = resp.json()
 
-    activities = data.get("data", data) if isinstance(data, dict) else data
-    if isinstance(activities, dict):
-        activities = activities.get("activities", [])
+    activities = data.get("data", [])
 
     lines = [f"**Activities for Developer {developer_id}** ({len(activities)} found)", ""]
     if not activities:
         lines.append("No activities found.")
     else:
         for a in activities:
-            line = f"• [{a.get('type', '')}] {a.get('source', a.get('source_url', ''))} — {a.get('timestamp', a.get('date', ''))}"
+            line = f"• [{a.get('activity_type', '')}] {a.get('source_type', '')} — {a.get('source', '')}"
+            if a.get("action_time"):
+                line += f" | time: {a['action_time']}"
             if a.get("account_id"):
                 line += f" | account: {a['account_id']}"
+            if a.get("source_url"):
+                line += f" | {a['source_url']}"
             lines.append(line)
 
     return "\n".join(lines)
@@ -290,20 +324,25 @@ async def reo_list_segment_buyers(segment_id: str, page: int | None = None) -> s
         resp.raise_for_status()
         data = resp.json()
 
-    buyers = data.get("data", data) if isinstance(data, dict) else data
-    if isinstance(buyers, dict):
-        buyers = buyers.get("buyers", [])
+    buyers = data.get("data", [])
+    pagination = _pagination_info(data)
 
-    lines = [f"**Buyers in Segment {segment_id}** ({len(buyers)} found)", ""]
+    header = f"**Buyers in Segment {segment_id}** ({len(buyers)} found)"
+    if pagination:
+        header += f" | {pagination}"
+    lines = [header, ""]
+
     if not buyers:
         lines.append("No buyers found.")
     else:
         for b in buyers:
-            line = f"• {b.get('name', b.get('full_name', 'Unknown'))}"
-            if b.get("email") or b.get("business_email"):
-                line += f" — {b.get('email') or b.get('business_email')}"
-            if b.get("designation"):
-                line += f" | {b['designation']}"
+            line = f"• {b.get('developer_name', 'Unknown')}"
+            if b.get("developer_business_email"):
+                line += f" — {b['developer_business_email']}"
+            if b.get("developer_linkedin"):
+                line += f" | LinkedIn: {b['developer_linkedin']}"
+            if b.get("tags"):
+                line += f" | tags: {b['tags']}"
             lines.append(line)
 
     return "\n".join(lines)
@@ -347,7 +386,7 @@ async def reo_create_list(
     result = data.get("data", data) if isinstance(data, dict) else data
     lines = [
         "**List Created Successfully**",
-        f"ID: {result.get('id', result.get('list_id', 'N/A'))}",
+        f"ID: {result.get('id', 'N/A')}",
         f"Name: {result.get('name', name)}",
         f"Type: {result.get('type', list_type)}",
     ]
@@ -370,9 +409,7 @@ async def reo_get_lists() -> str:
         resp.raise_for_status()
         data = resp.json()
 
-    lists = data.get("data", data) if isinstance(data, dict) else data
-    if isinstance(lists, dict):
-        lists = lists.get("lists", [])
+    lists = data if isinstance(data, list) else data.get("data", [])
 
     lines = [f"**Reo.dev Lists** ({len(lists)} found)", ""]
     if not lists:
@@ -438,20 +475,18 @@ async def reo_list_audiences(type: str | None = None) -> str:
         resp.raise_for_status()
         data = resp.json()
 
-    audiences = data.get("data", data) if isinstance(data, dict) else data
-    if isinstance(audiences, dict):
-        audiences = audiences.get("audiences", [])
+    audiences = data.get("data", [])
 
     lines = [f"**Reo.dev Audiences** ({len(audiences)} found)", ""]
     if not audiences:
         lines.append("No audiences found.")
     else:
         for a in audiences:
-            line = f"• [{a.get('audience_id', a.get('id', ''))}] {a.get('name', '')} — type: {a.get('type', '')}"
-            if a.get("member_count") is not None:
-                line += f" | members: {a['member_count']}"
-            if a.get("source"):
-                line += f" | source: {a['source']}"
+            line = f"• [{a.get('id', '')}] {a.get('name', '')} — type: {a.get('type', '')} | source: {a.get('source', '')}"
+            if a.get("count") is not None:
+                line += f" | members: {a['count']}"
+            if a.get("last_synced_at"):
+                line += f" | synced: {a['last_synced_at']}"
             lines.append(line)
 
     return "\n".join(lines)
@@ -475,30 +510,32 @@ async def reo_get_audience_members(audience_id: str, page: int = 1) -> str:
         resp.raise_for_status()
         data = resp.json()
 
-    inner = data.get("data", data) if isinstance(data, dict) else data
-    members = inner.get("members", inner) if isinstance(inner, dict) else inner
-    if not isinstance(members, list):
-        members = []
+    members = data.get("data", [])
+    page_no = data.get("page_no", page)
+    page_size = data.get("page_size")
+    total_pages = data.get("total_pages")
 
-    pagination = (
-        data.get("pagination") or (inner.get("pagination", {}) if isinstance(inner, dict) else {})
-        if isinstance(data, dict) else {}
-    )
+    pagination = f"page {page_no}"
+    if total_pages is not None:
+        pagination += f" of {total_pages}"
+    if page_size is not None:
+        pagination += f" (page size: {page_size})"
 
     lines = [
-        f"**Audience {audience_id} Members** (page {page})",
-        f"{len(members)} members" + (f" of {pagination.get('total', '?')} total" if pagination else ""),
+        f"**Audience {audience_id} Members** ({len(members)} on {pagination})",
         "",
     ]
     if not members:
         lines.append("No members found.")
     else:
         for m in members:
-            line = f"• {m.get('name', m.get('full_name', 'Unknown'))}"
+            line = f"• {m.get('full_name', 'Unknown')}"
             if m.get("designation"):
                 line += f" ({m['designation']})"
-            if m.get("email") or m.get("business_email"):
-                line += f" — {m.get('email') or m.get('business_email')}"
+            if m.get("email"):
+                line += f" — {m['email']}"
+            if m.get("country"):
+                line += f" | {m['country']}"
             if m.get("linkedin"):
                 line += f" | LinkedIn: {m['linkedin']}"
             lines.append(line)
