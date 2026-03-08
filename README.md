@@ -1,8 +1,89 @@
 # Reo MCP Server
 
-MCP server that exposes reo.dev integration and ingest APIs to Claude Desktop.
+MCP server that exposes reo.dev integration and ingest APIs to Claude Desktop. Once set up, you can ask Claude questions in plain English — no API calls or technical knowledge needed.
 
-## Tools
+## For End Users: Connect Claude Desktop to Reo
+
+Follow these steps once. After that, just open Claude Desktop and start asking questions.
+
+### Step 1: Install Node.js
+
+Claude Desktop requires Node.js version 20 or higher to connect to remote MCP servers.
+
+**Mac:**
+
+1. Open **Terminal** (press `Cmd + Space`, type "Terminal", press Enter)
+2. Paste the following command and press Enter:
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+```
+
+3. Close and reopen Terminal, then run:
+
+```bash
+nvm install 20
+nvm use 20
+```
+
+4. Verify it worked:
+
+```bash
+node --version
+```
+
+You should see something like `v20.x.x`.
+
+**Windows:**
+
+1. Go to [https://nodejs.org](https://nodejs.org) and download the **LTS** version
+2. Run the installer and follow the prompts
+3. Open **Command Prompt** and verify:
+
+```
+node --version
+```
+
+### Step 2: Edit Claude Desktop Config
+
+1. Open **Finder** and press `Cmd + Shift + G`
+2. Paste this path and press Enter:
+
+```
+~/Library/Application Support/Claude/
+```
+
+3. Open the file `claude_desktop_config.json` with any text editor (TextEdit works)
+4. Replace the contents with:
+
+```json
+{
+  "mcpServers": {
+    "reo": {
+      "url": "https://<your-staging-url>/mcp"
+    }
+  }
+}
+```
+
+> If the file already has other servers configured, add only the `"reo"` block inside `"mcpServers"` — don't replace the whole file.
+
+### Step 3: Restart Claude Desktop
+
+Quit Claude Desktop completely (`Cmd + Q`) and reopen it. You should see a hammer icon in the chat input — that means Reo tools are connected.
+
+### What you can ask Claude
+
+- "List all reo.dev segments"
+- "Show accounts in segment seg-123"
+- "Get developers for account acc-456"
+- "List all audiences"
+- "Show members of audience aud-789"
+- "What buyers are in the high-intent segment?"
+
+---
+
+## Tools Available
 
 - **reo_list_segments** — list all segments
 - **reo_list_segment_accounts** — list accounts within a segment
@@ -17,56 +98,20 @@ MCP server that exposes reo.dev integration and ingest APIs to Claude Desktop.
 - **reo_list_audiences** — list all audiences
 - **reo_get_audience_members** — get members of an audience
 
-## Local Setup (Claude Desktop on your Mac)
+---
 
-### 1. Install dependencies
+## For Developers: Running the Server
+
+### Local Development
 
 ```bash
-cd reo-docs-mcp
 pip install -r requirements.txt
-```
-
-### 2. Set environment variables
-
-```bash
 export REO_API_KEY=your_api_key
 export REO_USER=your_user
+python server.py
 ```
 
-### 3. Configure Claude Desktop
-
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "reo": {
-      "command": "python",
-      "args": ["/absolute/path/to/reo-docs-mcp/server.py"],
-      "env": {
-        "REO_API_KEY": "your_api_key",
-        "REO_USER": "your_user"
-      }
-    }
-  }
-}
-```
-
-### 4. Restart Claude Desktop
-
-Quit and reopen Claude Desktop. You should see "reo" in the MCP tools panel.
-
-### Example queries
-
-- "List all reo.dev segments"
-- "Show accounts in segment seg-123"
-- "Get developers for account acc-456"
-- "List all audiences"
-- "Show members of audience aud-789"
-
-## Staging Deployment
-
-### 1. Build and run with Docker
+### Staging Deployment (Docker)
 
 ```bash
 docker build -t reo-docs-mcp .
@@ -79,18 +124,4 @@ docker run -d \
   reo-docs-mcp
 ```
 
-### 2. Configure Claude Desktop (remote URL)
-
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "reo": {
-      "url": "http://<staging-ip>:8000/mcp"
-    }
-  }
-}
-```
-
-Restart Claude Desktop.
+The server will be available at `http://<host>:8000/mcp`.
