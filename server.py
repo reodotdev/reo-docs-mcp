@@ -12,6 +12,7 @@ load_dotenv()
 
 REO_INTEGRATION_BASE_URL = os.environ.get("REO_INTEGRATION_BASE_URL", "https://integration.reo.dev")
 REO_INGEST_BASE_URL = os.environ.get("REO_INGEST_BASE_URL", "https://ingest.reo.dev")
+REO_DATA_BASE_URL = os.environ.get("REO_DATA_BASE_URL", "https://data.reo.dev")
 # Fallback keys used only for stdio/local mode; HTTP clients pass their own via headers
 REO_API_KEY_DEFAULT = os.environ.get("REO_API_KEY", "")
 REO_USER_DEFAULT = os.environ.get("REO_USER", "")
@@ -794,6 +795,86 @@ async def reo_get_audience_members(ctx: Context, audience_id: str, page: int = 1
                 line += f" | {m['country']}"
             if m.get("linkedin"):
                 line += f" | LinkedIn: {m['linkedin']}"
+            lines.append(line)
+
+    return "\n".join(lines)
+
+
+@mcp.tool()
+async def reo_recent_senior_hires(
+    ctx: Context,
+    days_ago_max: int,
+    days_ago_min: int = 0,
+    domains: list[str] | None = None,
+    page: int = 1,
+    size: int = 50,
+) -> str:
+    """
+    Find senior-level employees who recently joined companies tracked in reo.dev.
+    Use this to identify newly hired decision-makers or technical leaders who may be
+    evaluating new tools, building new teams, or open to outreach.
+
+    Use this tool when the user asks to:
+    - Find recent senior hires at specific companies or across all accounts
+    - Identify VPs, Directors, or C-level people who joined in the last N days
+    - Research which companies are growing their senior leadership
+    - Find newly hired engineering or product leaders to target for outreach
+
+    Each result includes the person's public ID, company domain, job title, seniority
+    level, start date, and how many days ago they joined.
+
+    Args:
+        days_ago_max: How far back to look (in days). Must be between days_ago_min+1
+                      and 730. For example, 90 means "joined up to 90 days ago".
+        days_ago_min: Lower bound in days (default 0). Must be less than days_ago_max.
+                      For example, 30 means "joined at least 30 days ago".
+        domains: Optional list of company domains to scope results to
+                 (e.g. ["stripe.com", "notion.so"]). Omit to search all domains.
+        page: Page number for pagination. Starts at 1 (default).
+        size: Number of results per page. Default 50, max 500.
+
+    Returns:
+        A formatted list of recent senior hires showing name/ID, company, title,
+        seniority, start date, and days since joining. Includes pagination info.
+    """
+    api_key, _ = _get_credentials(ctx)
+    payload = _build_payload(
+        days_ago_min=days_ago_min,
+        days_ago_max=days_ago_max,
+        domains=domains,
+        page=page,
+        size=size,
+    )
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            f"{REO_DATA_BASE_URL}/api/data-wrapper-service/v1/analytics/recent-senior-hires",
+            headers=_reo_headers(api_key),
+            json=payload,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    results = data.get("results", [])
+    pagination = data.get("pagination", {})
+    total = data.get("total", len(results))
+    pg_page = pagination.get("page", page)
+    pg_size = pagination.get("size", size)
+    pg_total = pagination.get("total", total)
+    total_pages = -(-pg_total // pg_size) if pg_size else 1  # ceiling division
+
+    header = f"**Recent Senior Hires** ({total} total | page {pg_page} of {total_pages})"
+    lines = [header, ""]
+
+    if not results:
+        lines.append("No recent senior hires found.")
+    else:
+        for r in results:
+            line = f"• [{r.get('seniority', '')}] {r.get('position_title', 'Unknown')} — {r.get('company_domain', '')}"
+            if r.get("start_date"):
+                line += f" | started: {r['start_date'][:10]}"
+            if r.get("days_since_joined") is not None:
+                line += f" ({r['days_since_joined']} days ago)"
             lines.append(line)
 
     return "\n".join(lines)
